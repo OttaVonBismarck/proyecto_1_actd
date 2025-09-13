@@ -1,8 +1,4 @@
 
-# Tablero de Incidentes (basado en cleaned_incident_event_log.csv)
-# Ejecuta con:  python app.py
-
-
 
 from dash import Dash, dcc, html, Input, Output, State, callback, dash_table
 import plotly.express as px
@@ -10,6 +6,7 @@ import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 import os
+
 
 # ----------------------------
 # 1) Carga y preparación de datos
@@ -50,6 +47,10 @@ def load_data(path=DATA_PATH):
             True: True, False: False, "True": True, "False": False, 1: True, 0: False
         }).fillna(False)
 
+    # Mantener solo registros con active == False (según CSV)
+    if "active" in df.columns:
+        df = df[df["active"] == False]
+
     return df
 
 df_base = load_data()
@@ -61,6 +62,9 @@ def safe_unique(series, max_items=2000):
     vals = vals[:max_items]
     # cast a str por seguridad (tipos mixtos)
     return [{"label": str(v), "value": str(v)} for v in sorted(vals)]
+
+def with_total(options, label="Total (todas)"):
+    return [{"label": label, "value": "__TOTAL__"}] + (options or [])
 
 # ----------------------------
 # 1.1) Rango de meses para el slider
@@ -125,37 +129,42 @@ app.layout = html.Div(
                         html.Label("Estado (incident_state)"),
                         dcc.Dropdown(
                             id="dd-estado",
-                            options=safe_unique(df_base["incident_state"]) if "incident_state" in df_base.columns else [],
+                            options=with_total(safe_unique(df_base["incident_state"]) if "incident_state" in df_base.columns else []),
                             multi=True,
                             placeholder="Selecciona estado(s)",
+                            clearable=True,
                         ),
                         html.Label("Prioridad"),
                         dcc.Dropdown(
                             id="dd-prioridad",
-                            options=safe_unique(df_base["priority"]) if "priority" in df_base.columns else [],
+                            options=with_total(safe_unique(df_base["priority"]) if "priority" in df_base.columns else []),
                             multi=True,
                             placeholder="Selecciona prioridad(es)",
+                            clearable=True,
                         ),
                         html.Label("Categoría"),
                         dcc.Dropdown(
                             id="dd-categoria",
-                            options=safe_unique(df_base["category"]) if "category" in df_base.columns else [],
+                            options=with_total(safe_unique(df_base["category"]) if "category" in df_base.columns else []),
                             multi=True,
                             placeholder="Selecciona categoría(s)",
+                            clearable=True,
                         ),
                         html.Label("Grupo asignado (assignment_group)"),
                         dcc.Dropdown(
                             id="dd-grupo",
-                            options=safe_unique(df_base["assignment_group"]) if "assignment_group" in df_base.columns else [],
+                            options=with_total(safe_unique(df_base["assignment_group"]) if "assignment_group" in df_base.columns else []),
                             multi=True,
                             placeholder="Selecciona grupo(s)",
+                            clearable=True,
                         ),
                         html.Label("Ubicación"),
                         dcc.Dropdown(
                             id="dd-location",
-                            options=safe_unique(df_base["location"]) if "location" in df_base.columns else [],
+                            options=with_total(safe_unique(df_base["location"]) if "location" in df_base.columns else []),
                             multi=True,
                             placeholder="Selecciona ubicación(es)",
+                            clearable=True,
                         ),
                         html.Hr(),
                         html.Button("Aplicar", id="btn-aplicar", className="btn-primary"),
@@ -179,12 +188,21 @@ app.layout = html.Div(
                         html.Div(className="card", children=[
                             html.H3("KPIs"),
                             html.Div(className="kpi-grid", children=[
-                                html.Div(className="kpi", children=[html.Div("Incidentes", className="kpi-title"),
-                                                                    html.Div(id="kpi-incidentes", className="kpi-value")]),
-                                html.Div(className="kpi", children=[html.Div("% SLA cumplido", className="kpi-title"),
-                                                                    html.Div(id="kpi-sla", className="kpi-value")]),
-                                html.Div(className="kpi", children=[html.Div("TTR medio (h)", className="kpi-title"),
-                                                                    html.Div(id="kpi-ttr", className="kpi-value")]),
+                                html.Div(className="kpi", children=[
+                                    html.Div("Incidentes", className="kpi-title"),
+                                    html.Div(id="kpi-incidentes", className="kpi-value"),
+                                    html.Div(id="kpi-incidentes-sub", className="kpi-sub")  # <<< NUEVO
+                                ]),
+                                html.Div(className="kpi", children=[
+                                    html.Div("% SLA cumplido", className="kpi-title"),
+                                    html.Div(id="kpi-sla", className="kpi-value"),
+                                    html.Div(id="kpi-sla-sub", className="kpi-sub")  # <<< NUEVO
+                                ]),
+                                html.Div(className="kpi", children=[
+                                    html.Div("TTR medio (h)", className="kpi-title"),
+                                    html.Div(id="kpi-ttr", className="kpi-value"),
+                                    html.Div(id="kpi-ttr-sub", className="kpi-sub")  # <<< NUEVO
+                                ]),
                             ])
                         ]),
                         html.Div(className="card", children=[
@@ -255,6 +273,9 @@ def reset_store(n):
     Output("kpi-incidentes", "children"),
     Output("kpi-sla", "children"),
     Output("kpi-ttr", "children"),
+    Output("kpi-incidentes-sub", "children"),  # <<< NUEVO
+    Output("kpi-sla-sub", "children"),         # <<< NUEVO
+    Output("kpi-ttr-sub", "children"),         # <<< NUEVO
     Output("fig-series", "figure"),
     Output("fig-prioridad", "figure"),
     Output("fig-grupos", "figure"),
@@ -278,8 +299,16 @@ def actualizar(_, data_records, month_range_idx, estados, prioridades, categoria
         if col in df.columns:
             df[col] = pd.to_datetime(df[col], errors="coerce", dayfirst=True)
 
+    # Asegura el filtro active==False (por si llegara a entrar algo serializado extraño)
+    if "active" in df.columns:
+        df = df[df["active"] == False]
+
+    # Guardamos una copia ANTES del filtro por meses para calcular el periodo anterior
+    df_full = df.copy()
+
     # 1) Filtro por meses (RangeSlider)
     # month_range_idx == [i_start, i_end] (índices de 'months' global)
+    start_dt = end_dt = None
     if isinstance(month_range_idx, (list, tuple)) and len(month_range_idx) == 2:
         i_start, i_end = int(month_range_idx[0]), int(month_range_idx[1])
         # Protegemos límites por si el CSV cambió
@@ -290,19 +319,22 @@ def actualizar(_, data_records, month_range_idx, estados, prioridades, categoria
         if "opened_at" in df.columns and df["opened_at"].notna().any():
             df = df[(df["opened_at"] >= start_dt) & (df["opened_at"] <= end_dt)]
 
+    # Helper de filtro múltiple con opción "Total (todas)"
     def apply_multi_filter(frame, col, values):
         if col in frame.columns and values:
-            # fuerza str si los dropdowns devolvieron strings
+            if "__TOTAL__" in (v if isinstance(values, (list, tuple, set)) else [values]):
+                return frame
             return frame[frame[col].astype("string").isin(pd.Series(values, dtype="string"))]
         return frame
 
+    # Aplica filtros de dimensión al df actual
     df = apply_multi_filter(df, "incident_state", estados)
     df = apply_multi_filter(df, "priority", prioridades)
     df = apply_multi_filter(df, "category", categorias)
     df = apply_multi_filter(df, "assignment_group", grupos)
     df = apply_multi_filter(df, "location", locations)
 
-    # 2) KPIs
+    # 2) KPIs actuales
     n_inc = int(len(df))
     sla = 0.0
     if "made_sla" in df.columns and n_inc > 0:
@@ -310,6 +342,67 @@ def actualizar(_, data_records, month_range_idx, estados, prioridades, categoria
     ttr = 0.0
     if "ttr_hours" in df.columns and df["ttr_hours"].notna().any():
         ttr = float(df["ttr_hours"].mean())
+
+    # 2.1) KPIs del periodo anterior (misma duración inmediatamente previa)
+    kpi_inc_sub = "—"
+    kpi_sla_sub = "—"
+    kpi_ttr_sub = "—"
+    if start_dt is not None and end_dt is not None and "opened_at" in df_full.columns:
+        duration = end_dt - start_dt
+        prev_start = (start_dt - duration)  # ventana inmediatamente anterior
+        # para que no se solape, restamos 1 microseg al límite:
+        prev_end = start_dt - pd.Timedelta(microseconds=1)
+
+        df_prev = df_full[(df_full["opened_at"] >= prev_start) & (df_full["opened_at"] <= prev_end)]
+        # aplicar mismos filtros de dimensión
+        df_prev = apply_multi_filter(df_prev, "incident_state", estados)
+        df_prev = apply_multi_filter(df_prev, "priority", prioridades)
+        df_prev = apply_multi_filter(df_prev, "category", categorias)
+        df_prev = apply_multi_filter(df_prev, "assignment_group", grupos)
+        df_prev = apply_multi_filter(df_prev, "location", locations)
+
+        # Incidentes: variación %
+        curr_inc = n_inc
+        prev_inc = len(df_prev)
+        if prev_inc == 0:
+            kpi_inc_sub = "— vs. periodo anterior"
+        else:
+            diff_inc = (curr_inc - prev_inc) / prev_inc * 100.0
+            arrow = "▲" if diff_inc > 0 else ("▼" if diff_inc < 0 else "■")
+            kpi_inc_sub = f"{arrow} {abs(diff_inc):.1f}% vs periodo anterior"
+
+        # SLA: diferencia en puntos porcentuales
+        def sla_pct(frame):
+            if "made_sla" in frame.columns and len(frame) > 0:
+                return 100.0 * (frame["made_sla"] == True).mean()
+            return None
+
+        prev_sla = sla_pct(df_prev)
+        if prev_sla is None or prev_sla != prev_sla:  # NaN check
+            kpi_sla_sub = "— vs. periodo anterior"
+        else:
+            delta_pp = (sla - prev_sla)
+            arrow = "▲" if delta_pp > 0 else ("▼" if delta_pp < 0 else "■")
+            kpi_sla_sub = f"{arrow} {abs(delta_pp):.1f} pp vs periodo anterior"
+
+        # TTR: diferencia en horas (bajar es bueno)
+        def ttr_mean(frame):
+            if "ttr_hours" in frame.columns and frame["ttr_hours"].notna().any():
+                return float(frame["ttr_hours"].mean())
+            return None
+
+        prev_ttr = ttr_mean(df_prev)
+        if prev_ttr is None:
+            kpi_ttr_sub = "— vs. periodo anterior"
+        else:
+            delta_ttr = (ttr - prev_ttr)
+            # Si delta < 0, mejora
+            if delta_ttr < 0:
+                kpi_ttr_sub = f"▼ {abs(delta_ttr):.1f} h (mejor)"
+            elif delta_ttr > 0:
+                kpi_ttr_sub = f"▲ {abs(delta_ttr):.1f} h (peor)"
+            else:
+                kpi_ttr_sub = "■ 0.0 h"
 
     # 3) Gráficos
     # Serie semanal
@@ -365,7 +458,11 @@ def actualizar(_, data_records, month_range_idx, estados, prioridades, categoria
     kpi_sla = f"{sla:,.1f}%"
     kpi_ttr = f"{ttr:,.1f}"
 
-    return kpi_inc, kpi_sla, kpi_ttr, fig_series, fig_prio, fig_grp, tabla.to_dict("records"), columns
+    return (
+        kpi_inc, kpi_sla, kpi_ttr,
+        kpi_inc_sub, kpi_sla_sub, kpi_ttr_sub,
+        fig_series, fig_prio, fig_grp, tabla.to_dict("records"), columns
+    )
 
 
 # ----------------------------
