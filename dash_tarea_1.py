@@ -23,7 +23,11 @@ def load_data(path=DATA_PATH):
         df = pd.read_csv(path)
     except FileNotFoundError:
         df = pd.DataFrame()
-
+    
+    
+    
+    
+    
     # Limpieza básica
     if "Unnamed: 0" in df.columns:
         df = df.drop(columns=["Unnamed: 0"])
@@ -50,6 +54,9 @@ def load_data(path=DATA_PATH):
             True: True, False: False, "True": True, "False": False, 1: True, 0: False
         }).fillna(False)
 
+    if "active" in df.columns:
+        df = df[df["active"] == False]
+    
     return df
 
 df_base = load_data()
@@ -61,6 +68,10 @@ def safe_unique(series, max_items=2000):
     vals = vals[:max_items]
     # cast a str por seguridad (tipos mixtos)
     return [{"label": str(v), "value": str(v)} for v in sorted(vals)]
+
+
+def with_total(options, label="Total (todas)"):
+    return [{"label": label, "value": "__TOTAL__"}] + (options or [])
 
 # ----------------------------
 # 1.1) Rango de meses para el slider
@@ -125,37 +136,42 @@ app.layout = html.Div(
                         html.Label("Estado (incident_state)"),
                         dcc.Dropdown(
                             id="dd-estado",
-                            options=safe_unique(df_base["incident_state"]) if "incident_state" in df_base.columns else [],
+                            options=with_total(safe_unique(df_base["incident_state"]) if "incident_state" in df_base.columns else []),
                             multi=True,
                             placeholder="Selecciona estado(s)",
+                            clearable=True,
                         ),
                         html.Label("Prioridad"),
                         dcc.Dropdown(
                             id="dd-prioridad",
-                            options=safe_unique(df_base["priority"]) if "priority" in df_base.columns else [],
+                            options=with_total(safe_unique(df_base["priority"]) if "priority" in df_base.columns else []),
                             multi=True,
                             placeholder="Selecciona prioridad(es)",
+                            clearable=True,
                         ),
                         html.Label("Categoría"),
                         dcc.Dropdown(
                             id="dd-categoria",
-                            options=safe_unique(df_base["category"]) if "category" in df_base.columns else [],
+                            options=with_total(safe_unique(df_base["category"]) if "category" in df_base.columns else []),
                             multi=True,
                             placeholder="Selecciona categoría(s)",
+                            clearable=True,
                         ),
                         html.Label("Grupo asignado (assignment_group)"),
                         dcc.Dropdown(
                             id="dd-grupo",
-                            options=safe_unique(df_base["assignment_group"]) if "assignment_group" in df_base.columns else [],
+                            options=with_total(safe_unique(df_base["assignment_group"]) if "assignment_group" in df_base.columns else []),
                             multi=True,
                             placeholder="Selecciona grupo(s)",
+                            clearable=True,
                         ),
                         html.Label("Ubicación"),
                         dcc.Dropdown(
                             id="dd-location",
-                            options=safe_unique(df_base["location"]) if "location" in df_base.columns else [],
+                            options=with_total(safe_unique(df_base["location"]) if "location" in df_base.columns else []),
                             multi=True,
                             placeholder="Selecciona ubicación(es)",
+                            clearable=True,
                         ),
                         html.Hr(),
                         html.Button("Aplicar", id="btn-aplicar", className="btn-primary"),
@@ -279,10 +295,8 @@ def actualizar(_, data_records, month_range_idx, estados, prioridades, categoria
             df[col] = pd.to_datetime(df[col], errors="coerce", dayfirst=True)
 
     # 1) Filtro por meses (RangeSlider)
-    # month_range_idx == [i_start, i_end] (índices de 'months' global)
     if isinstance(month_range_idx, (list, tuple)) and len(month_range_idx) == 2:
         i_start, i_end = int(month_range_idx[0]), int(month_range_idx[1])
-        # Protegemos límites por si el CSV cambió
         i_start = max(0, min(i_start, len(months) - 1))
         i_end   = max(0, min(i_end, len(months) - 1))
         start_dt = months[i_start].to_timestamp(how="start")
@@ -290,9 +304,12 @@ def actualizar(_, data_records, month_range_idx, estados, prioridades, categoria
         if "opened_at" in df.columns and df["opened_at"].notna().any():
             df = df[(df["opened_at"] >= start_dt) & (df["opened_at"] <= end_dt)]
 
+    # >>> MODIFICADO: helper de filtro que ignora si está "Total (todas)"
     def apply_multi_filter(frame, col, values):
         if col in frame.columns and values:
-            # fuerza str si los dropdowns devolvieron strings
+            # Si incluye la opción total, no filtramos esa dimensión
+            if "__TOTAL__" in (v if isinstance(values, (list, tuple, set)) else [values]):
+                return frame
             return frame[frame[col].astype("string").isin(pd.Series(values, dtype="string"))]
         return frame
 
@@ -328,7 +345,6 @@ def actualizar(_, data_records, month_range_idx, estados, prioridades, categoria
         pr = (df["priority"].value_counts()
               .rename_axis("priority")
               .reset_index(name="count"))
-        # Ordena por jerarquía típica si aplica
         priority_order = [p for p in ["1 - Critical","2 - High","3 - Moderate","4 - Low","5 - Planning"] if p in pr["priority"].values]
         if priority_order:
             pr["priority"] = pd.Categorical(pr["priority"], categories=priority_order, ordered=True)
