@@ -20,7 +20,11 @@ def load_data(path=DATA_PATH):
         df = pd.read_csv(path)
     except FileNotFoundError:
         df = pd.DataFrame()
-
+    
+    
+    
+    
+    
     # Limpieza básica
     if "Unnamed: 0" in df.columns:
         df = df.drop(columns=["Unnamed: 0"])
@@ -311,7 +315,6 @@ def actualizar(_, data_records, month_range_idx, estados, prioridades, categoria
     start_dt = end_dt = None
     if isinstance(month_range_idx, (list, tuple)) and len(month_range_idx) == 2:
         i_start, i_end = int(month_range_idx[0]), int(month_range_idx[1])
-        # Protegemos límites por si el CSV cambió
         i_start = max(0, min(i_start, len(months) - 1))
         i_end   = max(0, min(i_end, len(months) - 1))
         start_dt = months[i_start].to_timestamp(how="start")
@@ -421,7 +424,6 @@ def actualizar(_, data_records, month_range_idx, estados, prioridades, categoria
         pr = (df["priority"].value_counts()
               .rename_axis("priority")
               .reset_index(name="count"))
-        # Ordena por jerarquía típica si aplica
         priority_order = [p for p in ["1 - Critical","2 - High","3 - Moderate","4 - Low","5 - Planning"] if p in pr["priority"].values]
         if priority_order:
             pr["priority"] = pd.Categorical(pr["priority"], categories=priority_order, ordered=True)
