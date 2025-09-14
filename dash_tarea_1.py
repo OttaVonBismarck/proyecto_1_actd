@@ -214,6 +214,46 @@ app.layout = html.Div(
                                 html.H3("Nivel de servicio por tipo de urgencia"),
                                 dcc.Graph(id="fig-urgencia"),
                             ]),
+                            html.Div(className="card", children=[
+                                html.H3("Distribución del tiempo de resolución (horas)"),
+                                html.Label("Número de bins"),
+                                dcc.Slider(
+                                    id="bins-slider",
+                                    min=10, max=1000, step=10, value=500,  # valores iniciales
+                                    marks={i: str(i) for i in [10, 100, 500, 1000]}
+                                ),
+                                html.Label("Límite máximo en el eje X:  "),
+                                dcc.Input(
+                                    id="xmax-input",
+                                    type="number",
+                                    value=200,  # valor inicial
+                                    min=1, step=10
+                                ),
+                                dcc.Graph(id="fig-resolution-time"),
+                            ]),
+                            html.Div(className="card", children=[
+                                html.H3("Tiempo de resolución promedio por categoría"),
+                                html.Label("Número de categorías a mostrar"),
+                                dcc.Input(
+                                    id="topn-input",
+                                    type="number",
+                                    value=10,   # valor inicial (Top 10)
+                                    min=1, step=1
+                                ),
+                                dcc.Graph(id="fig-top-categorias"),
+                            ]),
+                            html.Div(className="card", children=[
+                                html.H3("Scatter: Categoría vs Tiempo de Resolución"),
+                                dcc.Graph(id="fig-scatter-categoria"),
+                            ]),
+                            html.Div(className="card", children=[
+                                html.H3("Reassignment Count promedio por Prioridad"),
+                                dcc.Graph(id="fig-reassign-prioridad"),
+                            ]),
+                            html.Div(className="card", children=[
+                                html.H3("Distribución de Reassignment Count por Prioridad"),
+                                dcc.Graph(id="fig-violin-reassign"),
+                            ]),
                         ]),
                         html.Div(className="card", children=[
                             html.H3("Tabla (vista previa)"),
@@ -269,9 +309,14 @@ def reset_store(n):
     Output("fig-series", "figure"),
     Output("fig-prioridad", "figure"),
     Output("fig-grupos", "figure"),
-    Output("fig-sla", "figure"),  
+    Output("fig-sla", "figure"),
     Output("fig-contacto", "figure"),
     Output("fig-urgencia", "figure"),
+    Output("fig-resolution-time", "figure"),
+    Output("fig-top-categorias", "figure"),   # <<< NUEVO
+    Output("fig-scatter-categoria", "figure"),
+    Output("fig-reassign-prioridad", "figure"),
+    Output("fig-violin-reassign", "figure"),
     Output("tabla", "data"),
     Output("tabla", "columns"),
     Input("btn-aplicar", "n_clicks"),
@@ -282,9 +327,14 @@ def reset_store(n):
     State("dd-categoria", "value"),
     State("dd-grupo", "value"),
     State("dd-location", "value"),
+    State("bins-slider", "value"),
+    State("xmax-input", "value"),
+    State("topn-input", "value"),              # <<< NUEVO
     prevent_initial_call=True,
 )
-def actualizar(_, data_records, month_range_idx, estados, prioridades, categorias, grupos, locations):
+def actualizar(_, data_records, month_range_idx, estados, prioridades, categorias, grupos, locations,
+               bins, xmax, topn):
+
     df = pd.DataFrame(data_records)
 
     # --- Normaliza columnas de fecha (tras el roundtrip por dcc.Store) ---
@@ -354,13 +404,13 @@ def actualizar(_, data_records, month_range_idx, estados, prioridades, categoria
 
     # Top grupos
     if "assignment_group" in df.columns and df["assignment_group"].notna().any() and len(df) > 0:
-        topn = (df["assignment_group"].value_counts()
-                .head(10)
-                .rename_axis("assignment_group")
-                .reset_index(name="count"))
-        fig_grp = px.bar(topn, y="assignment_group", x="count", orientation="h", title="Top 10 grupos por volumen")
-        fig_grp.update_traces(text=topn["count"], textposition="outside")
-        fig_grp.update_layout(yaxis_title="", xaxis_title="Incidentes", margin=dict(l=20, r=20, t=50, b=20))
+        top_grupos = (df["assignment_group"].value_counts()
+              .head(10)
+              .rename_axis("assignment_group")
+              .reset_index(name="count"))
+        fig_grp = px.bar(top_grupos, y="assignment_group", x="count", orientation="h", title="Top 10 grupos por volumen")
+        fig_grp.update_traces(text=top_grupos["count"], textposition="outside")
+
     else:
         fig_grp = go.Figure().update_layout(title="Top grupos (sin datos)", margin=dict(l=20, r=20, t=50, b=20))
 
@@ -419,6 +469,179 @@ def actualizar(_, data_records, month_range_idx, estados, prioridades, categoria
     else:
         fig_urgencia = go.Figure().update_layout(title="Nivel de servicio por urgencia (sin datos)", margin=dict(l=20, r=20, t=50, b=20))
 
+        # Histograma de tiempo de resolución
+    if {"opened_at", "resolved_at"}.issubset(df.columns):
+        df2 = df.loc[df["active"] == False].copy()
+        df2["resolution_time"] = (
+            pd.to_datetime(df2["resolved_at"]) - pd.to_datetime(df2["opened_at"])
+        ).dt.total_seconds() / 3600
+        df2 = df2.dropna(subset=["resolution_time"])
+
+        if len(df2) > 0:
+            fig_res = px.histogram(
+                df2,
+                x="resolution_time",
+                nbins=bins or 500,
+                title="Distribución del tiempo de resolución (horas)"
+            )
+            if xmax:
+                fig_res.update_xaxes(range=[0, xmax])
+            fig_res.update_layout(
+                margin=dict(l=20, r=20, t=50, b=20),
+                xaxis_title="Horas de resolución",
+                yaxis_title="Número de incidentes"
+            )
+        else:
+            fig_res = go.Figure().update_layout(
+                title="Distribución del tiempo de resolución (sin datos)",
+                margin=dict(l=20, r=20, t=50, b=20)
+            )
+    else:
+        fig_res = go.Figure().update_layout(
+            title="Distribución del tiempo de resolución (sin datos)",
+            margin=dict(l=20, r=20, t=50, b=20)
+        )
+        
+    
+        # Top categorías por tiempo de resolución promedio
+    if {"category", "opened_at", "resolved_at"}.issubset(df.columns):
+        df2 = df.loc[df["active"] == False].copy()
+        df2["resolution_time"] = (
+            pd.to_datetime(df2["resolved_at"]) - pd.to_datetime(df2["opened_at"])
+        ).dt.total_seconds() / 3600
+        df2 = df2.dropna(subset=["resolution_time"])
+
+        if len(df2) > 0:
+            promedio_por_categoria = (
+                df2.groupby("category")["resolution_time"]
+                   .mean()
+                   .sort_values(ascending=False)
+            )
+            try:
+                topn_val = int(topn)
+            except (TypeError, ValueError):
+                topn_val = 10  # valor por defecto si viene vacío o inválido
+            topn_val = max(1, topn_val)
+
+            top_cats = promedio_por_categoria.tail(topn_val)  # menor tiempo promedio
+            fig_top_cat = px.bar(
+                x=top_cats.index,
+                y=top_cats.values,
+                labels={"x": "Categoría", "y": "Tiempo de resolución promedio (h)"},
+                title=f"Top {topn_val} categorías con menor tiempo de resolución promedio"
+
+            )
+            fig_top_cat.update_layout(
+                margin=dict(l=20, r=20, t=50, b=20),
+                xaxis_tickangle=-45
+            )
+        else:
+            fig_top_cat = go.Figure().update_layout(
+                title="Top categorías por tiempo de resolución (sin datos)",
+                margin=dict(l=20, r=20, t=50, b=20)
+            )
+    else:
+        fig_top_cat = go.Figure().update_layout(
+            title="Top categorías por tiempo de resolución (sin datos)",
+            margin=dict(l=20, r=20, t=50, b=20)
+        )
+
+        # Scatter: número extraído de 'category' vs tiempo de resolución
+    if {"category", "opened_at", "resolved_at"}.issubset(df.columns):
+        df2 = df.loc[df["active"] == False].copy()
+        df2["resolution_time"] = (
+            pd.to_datetime(df2["resolved_at"]) - pd.to_datetime(df2["opened_at"])
+        ).dt.total_seconds() / 3600
+
+        # Extraer número al final de 'category'
+        df2["categoria_num"] = df2["category"].str.extract(r"(\d+)$").astype(float)
+
+        df2_filtrado = df2.dropna(subset=["categoria_num", "resolution_time"])
+
+        if len(df2_filtrado) > 0:
+            fig_scatter = px.scatter(
+                df2_filtrado,
+                x="categoria_num",
+                y="resolution_time",
+                opacity=0.5,
+                labels={"categoria_num": "Número de Categoría", "resolution_time": "Tiempo de Resolución (h)"},
+                title="Scatterplot: Categoría vs Tiempo de Resolución"
+            )
+            fig_scatter.update_layout(margin=dict(l=20, r=20, t=50, b=20))
+        else:
+            fig_scatter = go.Figure().update_layout(
+                title="Scatterplot Categoría vs Tiempo (sin datos)",
+                margin=dict(l=20, r=20, t=50, b=20)
+            )
+    else:
+        fig_scatter = go.Figure().update_layout(
+            title="Scatterplot Categoría vs Tiempo (sin datos)",
+            margin=dict(l=20, r=20, t=50, b=20)
+        )
+        # Reassignment Count promedio por prioridad
+    if {"priority", "reassignment_count"}.issubset(df.columns) and df["priority"].notna().any():
+        promedio_por_prioridad = (
+            df.groupby("priority")["reassignment_count"]
+            .mean()
+            .sort_values(ascending=False)
+        )
+        if len(promedio_por_prioridad) > 0:
+            fig_reassign = px.bar(
+                x=promedio_por_prioridad.index,
+                y=promedio_por_prioridad.values,
+                labels={"x": "Prioridad", "y": "Reassignment Count Promedio"},
+                title="Reassignment Count Promedio por Prioridad"
+            )
+            fig_reassign.update_traces(marker_color="#FF5733", text=promedio_por_prioridad.values, textposition="outside")
+            fig_reassign.update_layout(margin=dict(l=20, r=20, t=50, b=20))
+        else:
+            fig_reassign = go.Figure().update_layout(
+                title="Reassignment Count por Prioridad (sin datos)",
+                margin=dict(l=20, r=20, t=50, b=20)
+            )
+    else:
+        fig_reassign = go.Figure().update_layout(
+            title="Reassignment Count por Prioridad (sin datos)",
+            margin=dict(l=20, r=20, t=50, b=20)
+        )
+        # Violinplot de reassignment_count por prioridad (sin puntos individuales)
+    if {"priority", "reassignment_count"}.issubset(df.columns) and df["priority"].notna().any():
+        df_violin = df.dropna(subset=["priority", "reassignment_count"])
+        if len(df_violin) > 0:
+            fig_violin = px.violin(
+                df_violin,
+                x="priority",
+                y="reassignment_count",
+                box=True,   # muestra boxplot dentro del violín
+                title="Distribución de Reassignment Count por Prioridad"
+            )
+            fig_violin.update_layout(
+                xaxis_title="Prioridad",
+                yaxis_title="Reassignment Count",
+                margin=dict(l=20, r=20, t=50, b=20)
+            )
+        else:
+            fig_violin = go.Figure().update_layout(
+                title="Distribución de Reassignment Count (sin datos)",
+                margin=dict(l=20, r=20, t=50, b=20)
+            )
+    else:
+        fig_violin = go.Figure().update_layout(
+            title="Distribución de Reassignment Count (sin datos)",
+            margin=dict(l=20, r=20, t=50, b=20)
+        )
+
+
+
+        
+
+        
+        
+
+
+        
+    
+    
     
     # 4) Tabla
     show_cols = [c for c in [
@@ -432,9 +655,12 @@ def actualizar(_, data_records, month_range_idx, estados, prioridades, categoria
     
 
     return (
-        fig_series, fig_prio, fig_grp, fig_sla, fig_contacto, fig_urgencia,
-        tabla.to_dict("records"), columns
-    )
+    fig_series, fig_prio, fig_grp,
+    fig_sla, fig_contacto, fig_urgencia,
+    fig_res, fig_top_cat, fig_scatter,fig_reassign, fig_violin,
+    tabla.to_dict("records"), columns)
+
+
 
 
 
