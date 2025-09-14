@@ -190,26 +190,6 @@ app.layout = html.Div(
                     className="content",
                     children=[
                         html.Div(className="card", children=[
-                            html.H3("KPIs"),
-                            html.Div(className="kpi-grid", children=[
-                                html.Div(className="kpi", children=[
-                                    html.Div("Incidentes", className="kpi-title"),
-                                    html.Div(id="kpi-incidentes", className="kpi-value"),
-                                    html.Div(id="kpi-incidentes-sub", className="kpi-sub")  # <<< NUEVO
-                                ]),
-                                html.Div(className="kpi", children=[
-                                    html.Div("% SLA cumplido", className="kpi-title"),
-                                    html.Div(id="kpi-sla", className="kpi-value"),
-                                    html.Div(id="kpi-sla-sub", className="kpi-sub")  # <<< NUEVO
-                                ]),
-                                html.Div(className="kpi", children=[
-                                    html.Div("TTR medio (h)", className="kpi-title"),
-                                    html.Div(id="kpi-ttr", className="kpi-value"),
-                                    html.Div(id="kpi-ttr-sub", className="kpi-sub")  # <<< NUEVO
-                                ]),
-                            ])
-                        ]),
-                        html.Div(className="card", children=[
                             html.H3("Evolución semanal de incidentes"),
                             dcc.Graph(id="fig-series"),
                         ]),
@@ -221,6 +201,18 @@ app.layout = html.Div(
                             html.Div(className="card", children=[
                                 html.H3("Top grupos por volumen"),
                                 dcc.Graph(id="fig-grupos"),
+                            ]),
+                            html.Div(className="card", children=[
+                                html.H3("Cumplimiento SLA"),
+                                dcc.Graph(id="fig-sla"),
+                            ]),
+                            html.Div(className="card", children=[
+                                html.H3("Nivel de servicio por tipo de contacto"),
+                                dcc.Graph(id="fig-contacto"),
+                            ]),
+                            html.Div(className="card", children=[
+                                html.H3("Nivel de servicio por tipo de urgencia"),
+                                dcc.Graph(id="fig-urgencia"),
                             ]),
                         ]),
                         html.Div(className="card", children=[
@@ -274,15 +266,12 @@ def reset_store(n):
 
 
 @callback(
-    Output("kpi-incidentes", "children"),
-    Output("kpi-sla", "children"),
-    Output("kpi-ttr", "children"),
-    Output("kpi-incidentes-sub", "children"),  # <<< NUEVO
-    Output("kpi-sla-sub", "children"),         # <<< NUEVO
-    Output("kpi-ttr-sub", "children"),         # <<< NUEVO
     Output("fig-series", "figure"),
     Output("fig-prioridad", "figure"),
     Output("fig-grupos", "figure"),
+    Output("fig-sla", "figure"),  
+    Output("fig-contacto", "figure"),
+    Output("fig-urgencia", "figure"),
     Output("tabla", "data"),
     Output("tabla", "columns"),
     Input("btn-aplicar", "n_clicks"),
@@ -307,8 +296,6 @@ def actualizar(_, data_records, month_range_idx, estados, prioridades, categoria
     if "active" in df.columns:
         df = df[df["active"] == False]
 
-    # Guardamos una copia ANTES del filtro por meses para calcular el periodo anterior
-    df_full = df.copy()
 
     # 1) Filtro por meses (RangeSlider)
     # month_range_idx == [i_start, i_end] (índices de 'months' global)
@@ -325,7 +312,7 @@ def actualizar(_, data_records, month_range_idx, estados, prioridades, categoria
     # Helper de filtro múltiple con opción "Total (todas)"
     def apply_multi_filter(frame, col, values):
         if col in frame.columns and values:
-            if "__TOTAL__" in (v if isinstance(values, (list, tuple, set)) else [values]):
+            if "__TOTAL__" in (values if isinstance(values, (list, tuple, set)) else [values]):
                 return frame
             return frame[frame[col].astype("string").isin(pd.Series(values, dtype="string"))]
         return frame
@@ -337,77 +324,8 @@ def actualizar(_, data_records, month_range_idx, estados, prioridades, categoria
     df = apply_multi_filter(df, "assignment_group", grupos)
     df = apply_multi_filter(df, "location", locations)
 
-    # 2) KPIs actuales
-    n_inc = int(len(df))
-    sla = 0.0
-    if "made_sla" in df.columns and n_inc > 0:
-        sla = 100.0 * (df["made_sla"] == True).mean()
-    ttr = 0.0
-    if "ttr_hours" in df.columns and df["ttr_hours"].notna().any():
-        ttr = float(df["ttr_hours"].mean())
-
-    # 2.1) KPIs del periodo anterior (misma duración inmediatamente previa)
-    kpi_inc_sub = "—"
-    kpi_sla_sub = "—"
-    kpi_ttr_sub = "—"
-    if start_dt is not None and end_dt is not None and "opened_at" in df_full.columns:
-        duration = end_dt - start_dt
-        prev_start = (start_dt - duration)  # ventana inmediatamente anterior
-        # para que no se solape, restamos 1 microseg al límite:
-        prev_end = start_dt - pd.Timedelta(microseconds=1)
-
-        df_prev = df_full[(df_full["opened_at"] >= prev_start) & (df_full["opened_at"] <= prev_end)]
-        # aplicar mismos filtros de dimensión
-        df_prev = apply_multi_filter(df_prev, "incident_state", estados)
-        df_prev = apply_multi_filter(df_prev, "priority", prioridades)
-        df_prev = apply_multi_filter(df_prev, "category", categorias)
-        df_prev = apply_multi_filter(df_prev, "assignment_group", grupos)
-        df_prev = apply_multi_filter(df_prev, "location", locations)
-
-        # Incidentes: variación %
-        curr_inc = n_inc
-        prev_inc = len(df_prev)
-        if prev_inc == 0:
-            kpi_inc_sub = "— vs. periodo anterior"
-        else:
-            diff_inc = (curr_inc - prev_inc) / prev_inc * 100.0
-            arrow = "▲" if diff_inc > 0 else ("▼" if diff_inc < 0 else "■")
-            kpi_inc_sub = f"{arrow} {abs(diff_inc):.1f}% vs periodo anterior"
-
-        # SLA: diferencia en puntos porcentuales
-        def sla_pct(frame):
-            if "made_sla" in frame.columns and len(frame) > 0:
-                return 100.0 * (frame["made_sla"] == True).mean()
-            return None
-
-        prev_sla = sla_pct(df_prev)
-        if prev_sla is None or prev_sla != prev_sla:  # NaN check
-            kpi_sla_sub = "— vs. periodo anterior"
-        else:
-            delta_pp = (sla - prev_sla)
-            arrow = "▲" if delta_pp > 0 else ("▼" if delta_pp < 0 else "■")
-            kpi_sla_sub = f"{arrow} {abs(delta_pp):.1f} pp vs periodo anterior"
-
-        # TTR: diferencia en horas (bajar es bueno)
-        def ttr_mean(frame):
-            if "ttr_hours" in frame.columns and frame["ttr_hours"].notna().any():
-                return float(frame["ttr_hours"].mean())
-            return None
-
-        prev_ttr = ttr_mean(df_prev)
-        if prev_ttr is None:
-            kpi_ttr_sub = "— vs. periodo anterior"
-        else:
-            delta_ttr = (ttr - prev_ttr)
-            # Si delta < 0, mejora
-            if delta_ttr < 0:
-                kpi_ttr_sub = f"▼ {abs(delta_ttr):.1f} h (mejor)"
-            elif delta_ttr > 0:
-                kpi_ttr_sub = f"▲ {abs(delta_ttr):.1f} h (peor)"
-            else:
-                kpi_ttr_sub = "■ 0.0 h"
-
-    # 3) Gráficos
+    
+    # 2) Gráficos
     # Serie semanal
     if "opened_at" in df.columns and df["opened_at"].notna().any() and len(df) > 0:
         tmp = (df.set_index("opened_at")
@@ -446,6 +364,62 @@ def actualizar(_, data_records, month_range_idx, estados, prioridades, categoria
     else:
         fig_grp = go.Figure().update_layout(title="Top grupos (sin datos)", margin=dict(l=20, r=20, t=50, b=20))
 
+    # Cumplimiento SLA
+    if "made_sla" in df.columns and df["made_sla"].notna().any() and len(df) > 0:
+        valores = df["made_sla"].value_counts()
+        labels = ["True", "False"]
+        fig_sla = go.Figure(data=[go.Pie(
+            labels=labels,
+            values=[valores.get(True, 0), valores.get(False, 0)],
+            hole=0.3,
+            marker=dict(colors=["#4CAF50", "#F44336"])
+        )])
+        fig_sla.update_layout(title="Porcentaje de cumplimiento de SLA", margin=dict(l=20, r=20, t=50, b=20))
+    else:
+        fig_sla = go.Figure().update_layout(title="Cumplimiento SLA (sin datos)", margin=dict(l=20, r=20, t=50, b=20))
+
+    
+        # Nivel de servicio por tipo de contacto
+    if {"contact_type", "made_sla"}.issubset(df.columns) and df["contact_type"].notna().any():
+        conteo = df.groupby(["contact_type", "made_sla"]).size().unstack(fill_value=0)
+        if True in conteo.columns:  # asegura que exista la columna True
+            conteo["nivel_servicio"] = conteo[True] / conteo.sum(axis=1) * 100
+            fig_contacto = px.bar(
+                conteo,
+                x=conteo.index,
+                y="nivel_servicio",
+                labels={"x": "Tipo de Contacto", "nivel_servicio": "Nivel de Servicio (%)"},
+                text="nivel_servicio",
+                title="Porcentaje de servicio cumplido por tipo de contacto"
+            )
+            fig_contacto.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
+            fig_contacto.update_layout(margin=dict(l=20, r=20, t=50, b=20), yaxis_range=[0, 100])
+        else:
+            fig_contacto = go.Figure().update_layout(title="Nivel de servicio por tipo de contacto (sin datos)", margin=dict(l=20, r=20, t=50, b=20))
+    else:
+        fig_contacto = go.Figure().update_layout(title="Nivel de servicio por tipo de contacto (sin datos)", margin=dict(l=20, r=20, t=50, b=20))
+
+        # Nivel de servicio por tipo de urgencia
+    if {"urgency", "made_sla"}.issubset(df.columns) and df["urgency"].notna().any():
+        conteo2 = df.groupby(["urgency", "made_sla"]).size().unstack(fill_value=0)
+        if True in conteo2.columns:
+            conteo2["nivel_servicio"] = conteo2[True] / conteo2.sum(axis=1) * 100
+            fig_urgencia = px.bar(
+                conteo2,
+                x=conteo2.index,
+                y="nivel_servicio",
+                labels={"x": "Urgencia", "nivel_servicio": "Nivel de Servicio (%)"},
+                text="nivel_servicio",
+                title="Porcentaje de servicio cumplido por tipo de urgencia"
+            )
+            fig_urgencia.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
+            fig_urgencia.update_layout(margin=dict(l=20, r=20, t=50, b=20), yaxis_range=[0, 100])
+        else:
+            fig_urgencia = go.Figure().update_layout(title="Nivel de servicio por urgencia (sin datos)", margin=dict(l=20, r=20, t=50, b=20))
+    else:
+        fig_urgencia = go.Figure().update_layout(title="Nivel de servicio por urgencia (sin datos)", margin=dict(l=20, r=20, t=50, b=20))
+
+    
     # 4) Tabla
     show_cols = [c for c in [
         "number","opened_at","incident_state","priority","category","subcategory",
@@ -455,16 +429,14 @@ def actualizar(_, data_records, month_range_idx, estados, prioridades, categoria
     tabla = df[show_cols].head(400) if show_cols else df.head(400)
     columns = [{"name": c, "id": c} for c in tabla.columns]
 
-    # KPIs como strings nice
-    kpi_inc = f"{n_inc:,}"
-    kpi_sla = f"{sla:,.1f}%"
-    kpi_ttr = f"{ttr:,.1f}"
+    
 
     return (
-        kpi_inc, kpi_sla, kpi_ttr,
-        kpi_inc_sub, kpi_sla_sub, kpi_ttr_sub,
-        fig_series, fig_prio, fig_grp, tabla.to_dict("records"), columns
+        fig_series, fig_prio, fig_grp, fig_sla, fig_contacto, fig_urgencia,
+        tabla.to_dict("records"), columns
     )
+
+
 
 
 # ----------------------------
