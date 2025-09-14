@@ -47,6 +47,57 @@ def load_data(path=DATA_PATH):
 
 df_base = load_data()
 
+# --- Modelo lineal para predecir tiempo de resolución (horas) ---
+def predecir_tiempo(active, reassignment_count, reopen_count, sys_mod_count,
+                    sys_updated_by, contact_type, category, priority,
+                    assignment_group, assigned_to, u_priority_confirmation,
+                    notify, resolved_by):
+    intercept = 0  # modelo "uncentered"
+    coef = {
+        "active": 87.3659,
+        "reassignment_count": -72.5064,
+        "reopen_count": -194.6124,
+        "sys_mod_count": 56.6763,
+        "sys_updated_by": -0.0429,
+        "contact_type": 14.7704,
+        "category": 0.5128,
+        "priority": 26.0830,
+        "assignment_group": -0.2867,
+        "assigned_to": 0.2307,
+        "u_priority_confirmation": -121.7733,
+        "notify": -107.3165,
+        "resolved_by": -0.2494
+    }
+    tiempo = (
+        intercept
+        + coef["active"] * active
+        + coef["reassignment_count"] * reassignment_count
+        + coef["reopen_count"] * reopen_count
+        + coef["sys_mod_count"] * sys_mod_count
+        + coef["sys_updated_by"] * sys_updated_by
+        + coef["contact_type"] * contact_type
+        + coef["category"] * category
+        + coef["priority"] * priority
+        + coef["assignment_group"] * assignment_group
+        + coef["assigned_to"] * assigned_to
+        + coef["u_priority_confirmation"] * u_priority_confirmation
+        + coef["notify"] * notify
+        + coef["resolved_by"] * resolved_by
+    )
+    return max(tiempo, 0.0)
+
+
+def _num_or_zero(val):
+    """Convierte None/'' a 0 y castea a float."""
+    try:
+        if val in (None, ""): 
+            return 0.0
+        return float(val)
+    except Exception:
+        return 0.0
+
+
+
 def safe_unique(series, max_items=2000):
     if series is None:
         return []
@@ -150,8 +201,6 @@ app.layout = html.Div(
                         html.Hr(),
                         html.Div("Navegación"),
 
-                        html.Hr(),
-                        html.Div("Navegación"),
 
                                             ],
                                         ),
@@ -251,6 +300,71 @@ app.layout = html.Div(
                                     ),
                                 ]),
                             ]),
+                            dcc.Tab(label="Modelo de predicción", value="tab-modelo", children=[
+                                html.Div(className="card", children=[
+                                    html.H3("Inputs del modelo (codificados numéricamente)"),
+                                    html.Div(className="grid-3", children=[
+                                        html.Div(children=[
+                                            html.Label("active (0/1)"),
+                                            dcc.RadioItems(
+                                                id="in-active",
+                                                options=[{"label":"0","value":0},{"label":"1","value":1}],
+                                                value=0, inline=True
+                                            ),
+                                            html.Label("reassignment_count"),
+                                            dcc.Input(id="in-reassignment", type="number", value=0, min=0, step=1),
+                                            html.Label("reopen_count"),
+                                            dcc.Input(id="in-reopen", type="number", value=0, min=0, step=1),
+                                            html.Label("sys_mod_count"),
+                                            dcc.Input(id="in-sysmod", type="number", value=0, min=0, step=1),
+                                            html.Label("sys_updated_by (cod.)"),
+                                            dcc.Input(id="in-sysupdatedby", type="number", value=0, step=1),
+                                        ]),
+                                        html.Div(children=[
+                                            html.Label("contact_type (cod.)"),
+                                            dcc.Input(id="in-contacttype", type="number", value=0, step=1),
+                                            html.Label("category (cod.)"),
+                                            dcc.Input(id="in-category", type="number", value=0, step=1),
+                                            html.Label("priority (cod.)"),
+                                            dcc.Input(id="in-priority", type="number", value=0, step=1),
+                                            html.Label("assignment_group (cod.)"),
+                                            dcc.Input(id="in-assignmentgroup", type="number", value=0, step=1),
+                                            html.Label("assigned_to (cod.)"),
+                                            dcc.Input(id="in-assignedto", type="number", value=0, step=1),
+                                        ]),
+                                        html.Div(children=[
+                                            html.Label("u_priority_confirmation (0/1)"),
+                                            dcc.RadioItems(
+                                                id="in-uconfirm",
+                                                options=[{"label":"0","value":0},{"label":"1","value":1}],
+                                                value=0, inline=True
+                                            ),
+                                            html.Label("notify (0/1)"),
+                                            dcc.RadioItems(
+                                                id="in-notify",
+                                                options=[{"label":"0","value":0},{"label":"1","value":1}],
+                                                value=0, inline=True
+                                            ),
+                                            html.Label("resolved_by (cod.)"),
+                                            dcc.Input(id="in-resolvedby", type="number", value=0, step=1),
+                                        ]),
+                                    ]),
+                                    html.P("Todos los campos deben estar codificados numéricamente (one-hot / label encoding previo).", className="note"),
+                                ]),
+                                html.Div(className="grid-2", children=[
+                                    html.Div(className="card", children=[
+                                        html.H3("Tiempo de resolución predicho (horas)"),
+                                        html.Div(id="pred-valor", style={"fontSize":"28px","fontWeight":"700"}),
+                                        html.P("Resultado del modelo lineal en horas, truncado a 0 si es negativo.", className="note"),
+                                    ]),
+                                    html.Div(className="card", children=[
+                                        html.H3("Indicador"),
+                                        dcc.Graph(id="pred-gauge"),
+                                        html.P("Indicador visual del tiempo predicho (escala autoajustada).", className="note"),
+                                    ]),
+                                ]),
+                            ])
+
                         ])
                     ]
 
@@ -319,8 +433,6 @@ def reset_store(n):
 def actualizar(data_records, month_range_idx, prioridades, categorias, grupos, locations,
                bins, xmax, topn):
 
-
-
     df = pd.DataFrame(data_records)
 
     # Normaliza fechas
@@ -356,9 +468,7 @@ def actualizar(data_records, month_range_idx, prioridades, categorias, grupos, l
     df = apply_multi_filter(df, "assignment_group", grupos)
     df = apply_multi_filter(df, "location", locations)
 
-
-    
-        # =====================
+    # =====================
     # 2) GRÁFICOS
     # =====================
 
@@ -425,8 +535,9 @@ def actualizar(data_records, month_range_idx, prioridades, categorias, grupos, l
     else:
         fig_res = go.Figure().update_layout(title="Distribución resolución (sin datos)")
 
-    # Top categorías
+    # Top categorías (define df2 local aquí también)
     if {"category", "opened_at", "resolved_at"}.issubset(df.columns):
+        df2 = df.copy()
         df2["resolution_time"] = (pd.to_datetime(df2["resolved_at"]) - pd.to_datetime(df2["opened_at"])).dt.total_seconds() / 3600
         promedio_por_categoria = df2.groupby("category")["resolution_time"].mean().sort_values(ascending=False)
         try:
@@ -438,8 +549,10 @@ def actualizar(data_records, month_range_idx, prioridades, categorias, grupos, l
     else:
         fig_top_cat = go.Figure().update_layout(title="Top categorías (sin datos)")
 
-    # Scatter: categoría numérica vs tiempo de resolución
+    # Scatter categoría numérica vs tiempo (df2 local)
     if {"category", "opened_at", "resolved_at"}.issubset(df.columns):
+        df2 = df.copy()
+        df2["resolution_time"] = (pd.to_datetime(df2["resolved_at"]) - pd.to_datetime(df2["opened_at"])).dt.total_seconds() / 3600
         df2["categoria_num"] = df2["category"].str.extract(r"(\d+)$").astype(float)
         df2_filtrado = df2.dropna(subset=["categoria_num", "resolution_time"])
         if len(df2_filtrado) > 0:
@@ -456,7 +569,7 @@ def actualizar(data_records, month_range_idx, prioridades, categorias, grupos, l
     else:
         fig_reassign = go.Figure().update_layout(title="Reassignment (sin datos)")
 
-    # Violinplot de reassignment_count por prioridad
+    # Violinplot
     if {"priority", "reassignment_count"}.issubset(df.columns):
         df_violin = df.dropna(subset=["priority", "reassignment_count"])
         if len(df_violin) > 0:
@@ -484,6 +597,82 @@ def actualizar(data_records, month_range_idx, prioridades, categorias, grupos, l
         fig_reassign, fig_violin,
         tabla.to_dict("records"), columns
     )
+
+
+
+
+
+@callback(
+    Output("pred-valor", "children"),
+    Output("pred-gauge", "figure"),
+    Input("in-active", "value"),
+    Input("in-reassignment", "value"),
+    Input("in-reopen", "value"),
+    Input("in-sysmod", "value"),
+    Input("in-sysupdatedby", "value"),
+    Input("in-contacttype", "value"),
+    Input("in-category", "value"),
+    Input("in-priority", "value"),
+    Input("in-assignmentgroup", "value"),
+    Input("in-assignedto", "value"),
+    Input("in-uconfirm", "value"),
+    Input("in-notify", "value"),
+    Input("in-resolvedby", "value"),
+)
+def actualizar_pred(active, reassignment_count, reopen_count, sys_mod_count,
+                    sys_updated_by, contact_type, category, priority,
+                    assignment_group, assigned_to, u_priority_confirmation,
+                    notify, resolved_by):
+    # Sanitiza/convierte
+    active = int(_num_or_zero(active))
+    u_priority_confirmation = int(_num_or_zero(u_priority_confirmation))
+    notify = int(_num_or_zero(notify))
+
+    reassignment_count = _num_or_zero(reassignment_count)
+    reopen_count = _num_or_zero(reopen_count)
+    sys_mod_count = _num_or_zero(sys_mod_count)
+    sys_updated_by = _num_or_zero(sys_updated_by)
+    contact_type = _num_or_zero(contact_type)
+    category = _num_or_zero(category)
+    priority = _num_or_zero(priority)
+    assignment_group = _num_or_zero(assignment_group)
+    assigned_to = _num_or_zero(assigned_to)
+    resolved_by = _num_or_zero(resolved_by)
+
+    yhat = predecir_tiempo(
+        active, reassignment_count, reopen_count, sys_mod_count,
+        sys_updated_by, contact_type, category, priority,
+        assignment_group, assigned_to, u_priority_confirmation,
+        notify, resolved_by
+    )
+
+    # Texto grande
+    texto = f"{yhat:,.2f} h"
+
+    # Indicador (gauge-like con indicador numérico)
+    max_scale = max(10.0, yhat * 1.2)  # escala simple
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=yhat,
+        number={"suffix":" h"},
+        gauge={
+            "axis":{"range":[0, max_scale]},
+            "bar":{"color":"#2563EB"},
+            "steps":[
+                {"range":[0, max_scale*0.33], "color":"#DBEAFE"},
+                {"range":[max_scale*0.33, max_scale*0.66], "color":"#BFDBFE"},
+                {"range":[max_scale*0.66, max_scale], "color":"#93C5FD"},
+            ]
+        }
+    ))
+    return texto, fig
+
+
+
+
+
+
+
 
 
 
