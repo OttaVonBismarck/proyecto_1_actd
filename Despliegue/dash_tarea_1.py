@@ -6,12 +6,35 @@ import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 import os
+import plotly.io as pio
+
+
+# --- Helpers de estilo para que las figuras respeten el tema oscuro ---
+def style_fig(fig, title=None):
+    fig.update_layout(
+        title=title or fig.layout.title.text,
+        paper_bgcolor="#1E1E2F",   # mismo fondo de .card
+        plot_bgcolor="#1E1E2F",
+        font=dict(color="#E5E7EB"),  # texto claro
+        margin=dict(l=20, r=20, t=50, b=20),
+        legend=dict(bgcolor="rgba(0,0,0,0)"),
+    )
+    fig.update_xaxes(
+        gridcolor="#374151", zerolinecolor="#374151", linecolor="#374151", ticks="outside"
+    )
+    fig.update_yaxes(
+        gridcolor="#374151", zerolinecolor="#374151", linecolor="#374151", ticks="outside"
+    )
+    return fig
+
+
+
 
 # ----------------------------
 # 1) Carga y preparación de datos
 # ----------------------------
 
-DATA_PATH = "cleaned_incident_event_log.csv"
+DATA_PATH = "Tarea 5 - Desarrollo de tablero\cleaned_incident_event_log.csv"
 
 def load_data(path=DATA_PATH):
     try:
@@ -129,6 +152,7 @@ external_stylesheets = [
     "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap",
 ]
 app = Dash(__name__, external_stylesheets=external_stylesheets, suppress_callback_exceptions=True)
+pio.templates.default = "plotly_dark"
 server = app.server
 app.title = "Tablero de Incidentes"
 
@@ -212,16 +236,22 @@ app.layout = html.Div(
                             dcc.Tab(label="Resumen", value="tab-resumen", children=[
                                 html.Div(className="card", children=[
                                     html.H3("Evolución semanal de incidentes"),
-                                    dcc.Graph(id="fig-series"),
+                                    dcc.Graph(id="fig-series",
+                                        style={"height": "340px"},
+                                        config={"displayModeBar": False, "responsive": True}),
                                 ]),
                                 html.Div(className="grid-2", children=[
                                     html.Div(className="card", children=[
                                         html.H3("Distribución por prioridad"),
-                                        dcc.Graph(id="fig-prioridad"),
+                                        dcc.Graph(id="fig-prioridad",
+                                                  style={"height": "340px"},
+                                                  config={"displayModeBar": False, "responsive": True}),
                                     ]),
                                     html.Div(className="card", children=[
                                         html.H3("Top grupos por volumen"),
-                                        dcc.Graph(id="fig-grupos"),
+                                        dcc.Graph(id="fig-grupos",
+                                                  style={"height": "340px"},
+                                                  config={"displayModeBar": False, "responsive": True}),
                                     ]),
                                 ]),
                             ]),
@@ -229,16 +259,22 @@ app.layout = html.Div(
                                 html.Div(className="grid-2", children=[
                                     html.Div(className="card", children=[
                                         html.H3("Cumplimiento SLA"),
-                                        dcc.Graph(id="fig-sla"),
+                                        dcc.Graph(id="fig-sla",
+                                                  style={"height": "340px"},
+                                                  config={"displayModeBar": False, "responsive": True}),
                                     ]),
                                     html.Div(className="card", children=[
                                         html.H3("Nivel de servicio por tipo de contacto"),
-                                        dcc.Graph(id="fig-contacto"),
+                                        dcc.Graph(id="fig-contacto",
+                                                  style={"height": "340px"},
+                                                  config={"displayModeBar": False, "responsive": True}),
                                     ]),
                                 ]),
                                 html.Div(className="card", children=[
                                     html.H3("Nivel de servicio por tipo de urgencia"),
-                                    dcc.Graph(id="fig-urgencia"),
+                                    dcc.Graph(id="fig-urgencia",
+                                              style={"height": "340px"},
+                                              config={"displayModeBar": False, "responsive": True}),
                                 ]),
                             ]),
                             dcc.Tab(label="Operación & Tiempos", value="tab-tiempo", children=[
@@ -269,21 +305,29 @@ app.layout = html.Div(
                                             value=10,
                                             min=1, step=1, debounce=True
                                         ),
-                                        dcc.Graph(id="fig-top-categorias"),
+                                        dcc.Graph(id="fig-top-categorias",
+                                                  style={"height": "340px"},
+                                                  config={"displayModeBar": False, "responsive": True}),
                                     ]),
                                     html.Div(className="card", children=[
                                         html.H3("Scatter: Categoría vs Tiempo de Resolución"),
-                                        dcc.Graph(id="fig-scatter-categoria"),
+                                        dcc.Graph(id="fig-scatter-categoria",
+                                                  style={"height": "340px"},
+                                                  config={"displayModeBar": False, "responsive": True}),
                                     ]),
                                 ]),
                                 html.Div(className="grid-2", children=[
                                     html.Div(className="card", children=[
                                         html.H3("Reassignment Count promedio por Prioridad"),
-                                        dcc.Graph(id="fig-reassign-prioridad"),
+                                        dcc.Graph(id="fig-reassign-prioridad",
+                                                  style={"height": "340px"},
+                                                  config={"displayModeBar": False, "responsive": True}),
                                     ]),
                                     html.Div(className="card", children=[
                                         html.H3("Distribución de Reassignment Count por Prioridad"),
-                                        dcc.Graph(id="fig-violin-reassign"),
+                                        dcc.Graph(id="fig-violin-reassign",
+                                                  style={"height": "340px"},
+                                                  config={"displayModeBar": False, "responsive": True}),
                                     ]),
                                 ]),
                             ]),
@@ -296,73 +340,170 @@ app.layout = html.Div(
                                         filter_action="native",
                                         sort_action="native",
                                         style_table={"overflowX": "auto"},
-                                        style_cell={"fontFamily": "Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial", "fontSize": 13},
-                                    ),
+                                        style_cell={
+                                            "backgroundColor": "#111827",   # fondo oscuro
+                                            "color": "#F9FAFB",             # texto claro
+                                            "border": "1px solid #374151",  # bordes gris oscuro
+                                            "fontFamily": "Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial",
+                                            "fontSize": 13,
+                                        },
+                                        style_header={
+                                            "backgroundColor": "#1F2937",
+                                            "color": "#F9FAFB",
+                                            "fontWeight": "bold",
+                                            "border": "1px solid #4B5563",
+                                        },
+                                        style_data_conditional=[
+                                            {"if": {"row_index": "odd"}, "backgroundColor": "#1E293B"}
+                                        ]
+                                    )
+
                                 ]),
                             ]),
                             dcc.Tab(label="Modelo de predicción", value="tab-modelo", children=[
                                 html.Div(className="card", children=[
-                                    html.H3("Inputs del modelo (codificados numéricamente)"),
-                                    html.Div(className="grid-3", children=[
-                                        html.Div(children=[
-                                            html.Label("active (0/1)"),
-                                            dcc.RadioItems(
-                                                id="in-active",
-                                                options=[{"label":"0","value":0},{"label":"1","value":1}],
-                                                value=0, inline=True
-                                            ),
-                                            html.Label("reassignment_count"),
-                                            dcc.Input(id="in-reassignment", type="number", value=0, min=0, step=1),
-                                            html.Label("reopen_count"),
-                                            dcc.Input(id="in-reopen", type="number", value=0, min=0, step=1),
-                                            html.Label("sys_mod_count"),
-                                            dcc.Input(id="in-sysmod", type="number", value=0, min=0, step=1),
-                                            html.Label("sys_updated_by (cod.)"),
-                                            dcc.Input(id="in-sysupdatedby", type="number", value=0, step=1),
+                                    html.Div(className="card-header", children=[
+                                        html.H3("Inputs del modelo"),
+                                        html.P("Ingresa valores numéricos (las variables categóricas deben estar codificadas numéricamente).", className="note")
+                                    ]),
+                                    html.Div(className="form-grid form-grid-3", children=[
+                                        # Columna 1
+                                        html.Div(className="form-card", children=[
+                                            html.Div(className="input-group", children=[
+                                                html.Label("active"),
+                                                dcc.RadioItems(
+                                                    id="in-active",
+                                                    options=[{"label":"0","value":0},{"label":"1","value":1}],
+                                                    value=1,
+                                                    inline=True,
+                                                    className="radio-segment"
+                                                ),
+                                                html.Small("0 = inactivo, 1 = activo", className="help")
+                                            ]),
+                                            html.Div(className="input-group", children=[
+                                                html.Label("reassignment_count"),
+                                                dcc.Input(id="in-reassignment", type="number", value=2, min=0, step=1,
+                                                        className="input", placeholder="p. ej. 2", debounce=True)
+                                            ]),
+                                            html.Div(className="input-group", children=[
+                                                html.Label("reopen_count"),
+                                                dcc.Input(id="in-reopen", type="number", value=0, min=0, step=1,
+                                                        className="input", placeholder="p. ej. 1", debounce=True)
+                                            ]),
+                                            html.Div(className="input-group", children=[
+                                                html.Label("sys_mod_count"),
+                                                dcc.Input(id="in-sysmod", type="number", value=12, min=0, step=1,
+                                                        className="input", placeholder="p. ej. 5", debounce=True)
+                                            ]),
+                                            html.Div(className="input-group", children=[
+                                                html.Label("sys_updated_by (cod.)"),
+                                                dcc.Input(id="in-sysupdatedby", type="number", value=100, step=1,
+                                                        className="input", placeholder="ID codificado", debounce=True)
+                                            ]),
                                         ]),
-                                        html.Div(children=[
-                                            html.Label("contact_type (cod.)"),
-                                            dcc.Input(id="in-contacttype", type="number", value=0, step=1),
-                                            html.Label("category (cod.)"),
-                                            dcc.Input(id="in-category", type="number", value=0, step=1),
-                                            html.Label("priority (cod.)"),
-                                            dcc.Input(id="in-priority", type="number", value=0, step=1),
-                                            html.Label("assignment_group (cod.)"),
-                                            dcc.Input(id="in-assignmentgroup", type="number", value=0, step=1),
-                                            html.Label("assigned_to (cod.)"),
-                                            dcc.Input(id="in-assignedto", type="number", value=0, step=1),
+
+                                        # Columna 2
+                                        html.Div(className="form-card", children=[
+                                            html.Div(className="input-group", children=[
+                                                html.Label("contact_type (cod.)"),
+                                                dcc.Input(id="in-contacttype", type="number", value=3, step=1,
+                                                        className="input", placeholder="p. ej. 3", debounce=True)
+                                            ]),
+                                            html.Div(className="input-group", children=[
+                                                html.Label("category (cod.)"),
+                                                dcc.Input(id="in-category", type="number", value=5, step=1,
+                                                        className="input", placeholder="p. ej. 12", debounce=True)
+                                            ]),
+                                            html.Div(className="input-group", children=[
+                                                html.Label("priority (cod.)"),
+                                                dcc.Input(id="in-priority", type="number", value=2, step=1,
+                                                        className="input", placeholder="p. ej. 2", debounce=True)
+                                            ]),
+                                            html.Div(className="input-group", children=[
+                                                html.Label("assignment_group (cod.)"),
+                                                dcc.Input(id="in-assignmentgroup", type="number", value=20, step=1,
+                                                        className="input", placeholder="ID codificado", debounce=True)
+                                            ]),
+                                            html.Div(className="input-group", children=[
+                                                html.Label("assigned_to (cod.)"),
+                                                dcc.Input(id="in-assignedto", type="number", value=50, step=1,
+                                                        className="input", placeholder="ID codificado", debounce=True)
+                                            ]),
                                         ]),
-                                        html.Div(children=[
-                                            html.Label("u_priority_confirmation (0/1)"),
-                                            dcc.RadioItems(
-                                                id="in-uconfirm",
-                                                options=[{"label":"0","value":0},{"label":"1","value":1}],
-                                                value=0, inline=True
-                                            ),
-                                            html.Label("notify (0/1)"),
-                                            dcc.RadioItems(
-                                                id="in-notify",
-                                                options=[{"label":"0","value":0},{"label":"1","value":1}],
-                                                value=0, inline=True
-                                            ),
-                                            html.Label("resolved_by (cod.)"),
-                                            dcc.Input(id="in-resolvedby", type="number", value=0, step=1),
+
+                                        # Columna 3
+                                        html.Div(className="form-card", children=[
+                                            html.Div(className="input-group", children=[
+                                                html.Label("u_priority_confirmation"),
+                                                dcc.RadioItems(
+                                                    id="in-uconfirm",
+                                                    options=[{"label":"0","value":0},{"label":"1","value":1}],
+                                                    value=1,
+                                                    inline=True,
+                                                    className="radio-segment"
+                                                ),
+                                                html.Small("0 = no confirmado, 1 = confirmado", className="help")
+                                            ]),
+                                            html.Div(className="input-group", children=[
+                                                html.Label("notify"),
+                                                dcc.RadioItems(
+                                                    id="in-notify",
+                                                    options=[{"label":"0","value":0},{"label":"1","value":1}],
+                                                    value=0,
+                                                    inline=True,
+                                                    className="radio-segment"
+                                                ),
+                                                html.Small("0 = sin notificar, 1 = notificado", className="help")
+                                            ]),
+                                            html.Div(className="input-group", children=[
+                                                html.Label("resolved_by (cod.)"),
+                                                dcc.Input(id="in-resolvedby", type="number", value=77, step=1,
+                                                        className="input", placeholder="ID codificado", debounce=True)
+                                            ]),
                                         ]),
                                     ]),
-                                    html.P("Todos los campos deben estar codificados numéricamente (one-hot / label encoding previo).", className="note"),
                                 ]),
                                 html.Div(className="grid-2", children=[
                                     html.Div(className="card", children=[
                                         html.H3("Tiempo de resolución predicho (horas)"),
-                                        html.Div(id="pred-valor", style={"fontSize":"28px","fontWeight":"700"}),
-                                        html.P("Resultado del modelo lineal en horas, truncado a 0 si es negativo.", className="note"),
+                                        html.Div(id="pred-valor", className="big-number"),
+                                        html.P("Salida del modelo lineal (no negativa).", className="note"),
                                     ]),
                                     html.Div(className="card", children=[
                                         html.H3("Indicador"),
-                                        dcc.Graph(id="pred-gauge"),
-                                        html.P("Indicador visual del tiempo predicho (escala autoajustada).", className="note"),
+                                        dcc.Graph(id="pred-gauge",
+                                                  style={"height": "340px"},
+                                                  config={"displayModeBar": False, "responsive": True}),
+                                        html.P("Escala automática según el valor predicho.", className="note"),
                                     ]),
                                 ]),
+                            ]),
+                            dcc.Tab(label="Simulación", value="tab-simulacion", children=[
+                                html.Div(className="card", children=[
+                                    html.Div(className="card-header", children=[
+                                        html.H3("Simulación de incidentes"),
+                                        html.P("Genera datos sintéticos con la misma estética del tablero.", className="note")
+                                    ]),
+                                    html.Div(className="form-grid form-grid-3", children=[
+                                        html.Div(className="input-group", children=[
+                                            html.Label("Número de incidentes a simular"),
+                                            dcc.Input(
+                                                id="in-n-simul", type="number", value=500, min=100, step=100,
+                                                className="input", debounce=True, placeholder="p. ej. 500"
+                                            ),
+                                            html.Small("Cambia el valor para regenerar las gráficas.", className="help")
+                                        ]),
+                                    ]),
+                                ]),
+                                html.Div(className="grid-2", children=[
+                                    html.Div(className="card", children=[dcc.Graph(id="simul-hist")]),
+                                    html.Div(className="card", children=[dcc.Graph(id="simul-cat")]),
+                                ]),
+                                html.Div(className="grid-2", children=[
+                                    html.Div(className="card", children=[dcc.Graph(id="simul-scatter")]),
+                                    html.Div(className="card", children=[dcc.Graph(id="simul-contact")]),
+                                ]),
+                                html.Div(className="card", children=[dcc.Graph(id="simul-prioridad")]),
                             ])
 
                         ])
@@ -429,6 +570,9 @@ def reset_store(n):
     Input("xmax-input", "value"),     
     Input("topn-input", "value"),     
 )
+
+
+
 
 def actualizar(data_records, month_range_idx, prioridades, categorias, grupos, locations,
                bins, xmax, topn):
@@ -600,6 +744,21 @@ def actualizar(data_records, month_range_idx, prioridades, categorias, grupos, l
 
 
 
+@callback(
+    Output("simul-hist", "figure"),
+    Output("simul-cat", "figure"),
+    Output("simul-scatter", "figure"),
+    Output("simul-contact", "figure"),
+    Output("simul-prioridad", "figure"),
+    Input("in-n-simul", "value")
+)
+def actualizar_simulacion(n):
+    try:
+        n = int(n) if n and int(n) > 0 else 500
+    except Exception:
+        n = 500
+    return simular_incidentes(n)
+
 
 
 @callback(
@@ -668,6 +827,91 @@ def actualizar_pred(active, reassignment_count, reopen_count, sys_mod_count,
     return texto, fig
 
 
+import plotly.express as px
+import plotly.graph_objects as go
+
+def simular_incidentes(n=500):
+    np.random.seed(42)
+
+    data = pd.DataFrame({
+        "active": np.random.randint(0, 2, n),
+        "reassignment_count": np.random.poisson(2, n),
+        "reopen_count": np.random.poisson(1, n),
+        "sys_mod_count": np.random.poisson(10, n),
+        "sys_updated_by": np.random.randint(1, 500, n),
+        "contact_type": np.random.randint(1, 6, n),   # 1..5
+        "category": np.random.randint(1, 64, n),      # 1..63
+        "priority": np.random.randint(1, 5, n),       # 1..4
+        "assignment_group": np.random.randint(1, 50, n),
+        "assigned_to": np.random.randint(1, 100, n),
+        "u_priority_confirmation": np.random.randint(0, 2, n),
+        "notify": np.random.randint(0, 2, n),
+        "resolved_by": np.random.randint(1, 100, n)
+    })
+
+    # Predicción con tu modelo lineal
+    data["resolved_time"] = data.apply(lambda row: predecir_tiempo(
+        row.active, row.reassignment_count, row.reopen_count, row.sys_mod_count,
+        row.sys_updated_by, row.contact_type, row.category, row.priority,
+        row.assignment_group, row.assigned_to, row.u_priority_confirmation,
+        row.notify, row.resolved_by
+    ), axis=1)
+
+    # KPI simple de cumplimiento (comparado contra la media)
+    media = data["resolved_time"].mean()
+    data["cumple_SLA"] = data["resolved_time"] < media
+
+    # 1) Histograma resolved_time con línea de media
+    fig_hist = px.histogram(
+        data, x="resolved_time", nbins=30, title="Distribución de tiempos de resolución (h)", opacity=0.9
+    )
+    fig_hist.add_vline(
+        x=media, line_dash="dash", line_color="#F87171",
+        annotation_text=f"Media {media:.1f} h", annotation_position="top right"
+    )
+    style_fig(fig_hist)
+
+    # 2) Strip por categoría
+    fig_cat = px.strip(
+        data, x="category", y="resolved_time",
+        title="Tiempo de resolución por categoría"
+    )
+    fig_cat.update_traces(jitter=0.3)
+    fig_cat.update_xaxes(dtick=10)
+    style_fig(fig_cat)
+
+    # 3) Reasignaciones vs prioridad (tamaño por tiempo resuelto)
+    fig_scatter = px.scatter(
+        data, x="reassignment_count", y="priority", size="resolved_time",
+        opacity=0.6, title="Reasignaciones vs prioridad (tamaño = tiempo resolución)"
+    )
+    style_fig(fig_scatter)
+
+    # 4) Cumplimiento por tipo de contacto
+    contact_labels = {1:"Phone", 2:"Email", 3:"Self service", 4:"Direct opening", 5:"IVR"}
+    tmp_c = (data.groupby("contact_type")["cumple_SLA"].mean() * 100).rename(index=contact_labels).reset_index()
+    tmp_c.columns = ["contact_type", "cumple_SLA"]
+    fig_contact = px.bar(
+        tmp_c, x="contact_type", y="cumple_SLA", text="cumple_SLA",
+        title="Cumplimiento SLA por tipo de contacto (%)"
+    )
+    fig_contact.update_traces(texttemplate="%{text:.1f}%")
+    fig_contact.update_yaxes(range=[0, 100])
+    style_fig(fig_contact)
+
+    # 5) Cumplimiento por prioridad
+    priority_labels = {1:"1 - Critical", 2:"2 - High", 3:"3 - Moderate", 4:"4 - Low"}
+    tmp_p = (data.groupby("priority")["cumple_SLA"].mean() * 100).rename(index=priority_labels).reset_index()
+    tmp_p.columns = ["priority", "cumple_SLA"]
+    fig_prio = px.bar(
+        tmp_p, x="priority", y="cumple_SLA", text="cumple_SLA",
+        title="Cumplimiento SLA por prioridad (%)"
+    )
+    fig_prio.update_traces(texttemplate="%{text:.1f}%")
+    fig_prio.update_yaxes(range=[0, 100])
+    style_fig(fig_prio)
+
+    return fig_hist, fig_cat, fig_scatter, fig_contact, fig_prio
 
 
 

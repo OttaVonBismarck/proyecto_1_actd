@@ -1,0 +1,154 @@
+/* Fondo general */
+body, #root {
+  background-color: #111827; /* gris oscuro */
+  color: #F9FAFB; /* texto claro */
+  font-family: 'Inter', sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+/* Sidebar */
+.sidebar {
+  background-color: #1F2937; /* gris más claro */
+  padding: 1rem;
+  border-right: 1px solid #374151;
+  color: #E5E7EB;
+}
+
+/* Tarjetas generales */
+.card {
+  background-color: #1E1E2F;
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+  color: #E5E7EB;
+}
+
+/* Tarjetas de formulario (inputs) */
+.form-card {
+  background-color: #1F2937;
+  border-radius: 10px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+}
+
+/* Grillas */
+.form-grid {
+  display: grid;
+  grid-gap: 1rem;
+}
+.form-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+/* Inputs y grupos */
+.input-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0.75rem;
+}
+.input-group label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+  color: #F9FAFB !important;
+}
+.input-group input, 
+.input-group .dash-input,
+.input-group .Select-control {
+  background-color: #111827 !important;
+  color: #F9FAFB !important;
+  border: 1px solid #374151 !important;
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+}
+.input-group input::placeholder {
+  color: #9CA3AF;
+}
+.help {
+  font-size: 0.75rem;
+  color: #9CA3AF;
+  margin-top: 0.2rem;
+}
+
+/* Radio items */
+.radio-segment label {
+  margin-right: 1rem;
+  cursor: pointer;
+}
+.radio-segment input {
+  margin-right: 0.3rem;
+}
+
+/* Dropdowns */
+.Select-control, .Select-menu-outer, .Select-value, .Select-placeholder {
+  background-color: #111827 !important;
+  color: #E5E7EB !important;
+  border: 1px solid #374151 !important;
+}
+.Select-menu-outer {
+  background-color: #1F2937 !important;
+}
+
+/* RangeSlider */
+.rc-slider-track {
+  background-color: #2563EB !important;
+}
+.rc-slider-handle {
+  border: solid 2px #93C5FD !important;
+  background-color: #1F2937 !important;
+}
+.rc-slider-rail {
+  background-color: #374151 !important;
+}
+
+/* Botones */
+button {
+  background-color: #2563EB;
+  border: none;
+  color: #F9FAFB;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+button:hover {
+  background-color: #1D4ED8;
+}
+
+/* Tabs */
+.tab {
+  background-color: #1F2937 !important;
+  color: #E5E7EB !important;
+  border: none !important;
+}
+.tab--selected {
+  background-color: #2563EB !important;
+  color: #FFFFFF !important;
+}
+
+/* Notas */
+.note {
+  font-size: 0.8rem;
+  color: #9CA3AF;
+}
+
+/* Big number (predicción) */
+.big-number {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #FACC15; /* amarillo brillante */
+  margin: 1rem 0;
+  text-align: center;
+}
